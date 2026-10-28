@@ -1,7 +1,7 @@
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { sql, STATUSES } from "@/lib/db";
-
+   import { tavilySearch } from "@/lib/search";
 const handler = createMcpHandler(
   (server) => {
     server.tool(
