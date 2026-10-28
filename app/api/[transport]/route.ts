@@ -86,15 +86,17 @@ const handler = createMcpHandler(
 
     server.tool(
       "search_jobs",
-      "Search the web for job postings or job-related information. Returns titles, links and snippets.",
+      "Search the web for job postings. Always pass a location when the user mentions one (for example 'India' or 'Hyderabad'). Returns titles, links and snippets. Posting dates are often missing, so tell the user to verify on the posting.",
       {
-        query: z.string().describe("Search text, e.g. 'backend intern remote Python'"),
+        query: z.string().describe("Search text, e.g. 'backend intern Python'"),
+        location: z.string().optional().describe("City, country or 'remote', e.g. 'India' or 'Hyderabad'"),
         max_results: z.number().int().min(1).max(8).optional().describe("Number of results, default 5"),
         time_range: z.enum(["day", "week", "month"]).optional().describe("Only recent results"),
       },
-      async ({ query, max_results, time_range }) => {
+      async ({ query, location, max_results, time_range }) => {
         try {
-          const results = await tavilySearch(query, max_results ?? 5, time_range);
+          const fullQuery = location ? `${query} ${location}` : query;
+          const results = await tavilySearch(fullQuery, max_results ?? 5, time_range);
           const body = results.length
             ? results
                 .map((r, i) => `${i + 1}. ${r.title}\n${r.url}\n${r.content.slice(0, 300)}`)
