@@ -101,6 +101,65 @@ const handler = createMcpHandler(
     );
 
     server.tool(
+      "update_application",
+      "Edit a tracked application's company, role, link or notes, using its id. Only the fields you pass are changed.",
+      {
+        id: z.number().describe("Application id from list_applications"),
+        company: z.string().optional().describe("New company name"),
+        role: z.string().optional().describe("New job title"),
+        url: z.string().optional().describe("New link to the job posting"),
+        notes: z.string().optional().describe("New notes (replaces the old notes)"),
+      },
+      async ({ id, company, role, url, notes }, extra) => {
+        const userId = uid(extra);
+        const rows = await sql`
+          UPDATE applications SET
+            company = COALESCE(${company ?? null}, company),
+            role = COALESCE(${role ?? null}, role),
+            url = COALESCE(${url ?? null}, url),
+            notes = COALESCE(${notes ?? null}, notes),
+            updated_at = now()
+          WHERE id = ${id} AND user_id = ${userId}
+          RETURNING id, company, role, status, url, notes`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: rows.length
+                ? `Updated: ${JSON.stringify(rows[0])}`
+                : `No application with id ${id}.`,
+            },
+          ],
+        };
+      }
+    );
+
+    server.tool(
+      "delete_application",
+      "Permanently delete a tracked application, using its id. This cannot be undone, so confirm with the user first.",
+      {
+        id: z.number().describe("Application id from list_applications"),
+      },
+      async ({ id }, extra) => {
+        const userId = uid(extra);
+        const rows = await sql`
+          DELETE FROM applications
+          WHERE id = ${id} AND user_id = ${userId}
+          RETURNING id, company, role`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: rows.length
+                ? `Deleted: ${JSON.stringify(rows[0])}`
+                : `No application with id ${id}.`,
+            },
+          ],
+        };
+      }
+    );
+
+    server.tool(
       "search_jobs",
       "Search the web for job postings. Always pass a location when the user mentions one (for example 'India' or 'Hyderabad'). Returns titles, links and snippets. Posting dates are often missing, so tell the user to verify on the posting.",
       {
