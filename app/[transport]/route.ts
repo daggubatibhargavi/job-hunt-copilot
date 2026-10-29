@@ -160,6 +160,49 @@ const handler = createMcpHandler(
     );
 
     server.tool(
+      "save_resume",
+      "Save or replace the user's resume text (plain text or markdown). Use when the user shares their resume and wants it stored for later tailoring.",
+      {
+        content: z.string().min(50).max(20000).describe("The full resume as plain text or markdown"),
+      },
+      async ({ content }, extra) => {
+        const userId = uid(extra);
+        const rows = await sql`
+          INSERT INTO resumes (user_id, content)
+          VALUES (${userId}, ${content})
+          ON CONFLICT (user_id)
+          DO UPDATE SET content = EXCLUDED.content, updated_at = now()
+          RETURNING length(content) AS chars`;
+        return {
+          content: [
+            { type: "text", text: `Resume saved (${rows[0].chars} characters).` },
+          ],
+        };
+      }
+    );
+
+    server.tool(
+      "get_resume",
+      "Get the user's saved resume text. Use before tailoring a resume or cover letter to a job.",
+      {},
+      async (_args, extra) => {
+        const userId = uid(extra);
+        const rows = await sql`
+          SELECT content, updated_at FROM resumes WHERE user_id = ${userId}`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: rows.length
+                ? rows[0].content
+                : "No resume saved yet. Ask the user to share it and call save_resume.",
+            },
+          ],
+        };
+      }
+    );
+
+    server.tool(
       "search_jobs",
       "Search the web for job postings. Always pass a location when the user mentions one (for example 'India' or 'Hyderabad'). Returns titles, links and snippets. Posting dates are often missing, so tell the user to verify on the posting.",
       {
