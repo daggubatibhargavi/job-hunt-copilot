@@ -4,17 +4,18 @@ import { sql } from "@/lib/db";
 const DAILY_LIMIT = 20;
 
 export async function tavilySearch(
+  userId: string,
   query: string,
   maxResults: number,
   timeRange?: string
 ) {
   const used = await sql`
     SELECT count(*)::int AS n FROM search_log
-    WHERE created_at > now() - interval '1 day'`;
+    WHERE user_id = ${userId} AND created_at > now() - interval '1 day'`;
   if (used[0].n >= DAILY_LIMIT) {
     throw new Error("Daily search limit reached. Try again tomorrow.");
   }
-  await sql`INSERT INTO search_log (query) VALUES (${query})`;
+  await sql`INSERT INTO search_log (user_id, query) VALUES (${userId}, ${query})`;
 
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",

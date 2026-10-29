@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/mcp-tools": "^0.7.0",
+    "@clerk/nextjs": "^7.9.22",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@neondatabase/serverless": "^1.2.0",
     "mcp-handler": "^1.1.0",

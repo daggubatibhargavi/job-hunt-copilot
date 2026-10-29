@@ -1,7 +1,16 @@
-import { createMcpHandler } from "mcp-handler";
+
+import { verifyClerkToken } from "@clerk/mcp-tools/next";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { sql, STATUSES } from "@/lib/db";
 import { tavilySearch } from "@/lib/search";
+
+function uid(extra: { authInfo?: { extra?: Record<string, unknown> } }): string {
+  const id = extra.authInfo?.extra?.userId;
+  if (typeof id !== "string" || !id) throw new Error("Not signed in");
+  return id;
+}
 
 const handler = createMcpHandler(
   (server) => {
@@ -23,10 +32,11 @@ const handler = createMcpHandler(
         url: z.string().optional().describe("Link to the job posting"),
         notes: z.string().optional().describe("Any notes about this job"),
       },
-      async ({ company, role, url, notes }) => {
+      async ({ company, role, url, notes }, extra) => {
+        const userId = uid(extra);
         const rows = await sql`
-          INSERT INTO applications (company, role, url, notes)
-          VALUES (${company}, ${role}, ${url ?? null}, ${notes ?? null})
+          INSERT INTO applications (user_id, company, role, url, notes)
+          VALUES (${userId}, ${company}, ${role}, ${url ?? null}, ${notes ?? null})
           RETURNING id, company, role, status`;
         return {
           content: [{ type: "text", text: `Saved: ${JSON.stringify(rows[0])}` }],
@@ -36,17 +46,21 @@ const handler = createMcpHandler(
 
     server.tool(
       "list_applications",
-      "List tracked job applications, optionally filtered by status.",
+      "List the user's tracked job applications, optionally filtered by status.",
       {
         status: z.enum(STATUSES).optional().describe("Only show this status"),
       },
-      async ({ status }) => {
+      async ({ status }, extra) => {
+        const userId = uid(extra);
         const rows = status
           ? await sql`SELECT id, company, role, status, url, notes
-                      FROM applications WHERE status = ${status}
+                      FROM applications
+                      WHERE user_id = ${userId} AND status = ${status}
                       ORDER BY updated_at DESC`
           : await sql`SELECT id, company, role, status, url, notes
-                      FROM applications ORDER BY updated_at DESC`;
+                      FROM applications
+                      WHERE user_id = ${userId}
+                      ORDER BY updated_at DESC`;
         return {
           content: [
             {
@@ -67,10 +81,12 @@ const handler = createMcpHandler(
         id: z.number().describe("Application id from list_applications"),
         status: z.enum(STATUSES).describe("New status"),
       },
-      async ({ id, status }) => {
+      async ({ id, status }, extra) => {
+        const userId = uid(extra);
         const rows = await sql`
           UPDATE applications SET status = ${status}, updated_at = now()
-          WHERE id = ${id} RETURNING id, company, role, status`;
+          WHERE id = ${id} AND user_id = ${userId}
+          RETURNING id, company, role, status`;
         return {
           content: [
             {
@@ -93,10 +109,11 @@ const handler = createMcpHandler(
         max_results: z.number().int().min(1).max(8).optional().describe("Number of results, default 5"),
         time_range: z.enum(["day", "week", "month"]).optional().describe("Only recent results"),
       },
-      async ({ query, location, max_results, time_range }) => {
+      async ({ query, location, max_results, time_range }, extra) => {
         try {
+          const userId = uid(extra);
           const fullQuery = location ? `${query} ${location}` : query;
-          const results = await tavilySearch(fullQuery, max_results ?? 5, time_range);
+          const results = await tavilySearch(userId, fullQuery, max_results ?? 5, time_range);
           const body = results.length
             ? results
                 .map((r, i) => `${i + 1}. ${r.title}\n${r.url}\n${r.content.slice(0, 300)}`)
@@ -122,7 +139,19 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "job-hunt-copilot", version: "1.0.0" },
   },
-  { basePath: "/api", verboseLogs: true }
+  { basePath: "", verboseLogs: true }
 );
 
-export { handler as GET, handler as POST };
+const authHandler = withMcpAuth(
+  handler,
+  async (_, token) => {
+    const clerkAuth = await auth({ acceptsToken: "oauth_token" });
+    return verifyClerkToken(clerkAuth, token);
+  },
+  {
+    required: true,
+    resourceMetadataPath: "/.well-known/oauth-protected-resource/mcp",
+  }
+);
+
+export { authHandler as GET, authHandler as POST };
