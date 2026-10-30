@@ -14,6 +14,8 @@ const mark =
 const focus =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F1B2D] dark:focus-visible:outline-[#FFE066]";
 const muted = "text-[#52606D] dark:text-[#9FB0C0]";
+const codeBox =
+  "block select-all overflow-x-auto whitespace-pre-wrap rounded-md bg-[#E8EDF2] px-4 py-3 font-mono text-sm dark:bg-[#162231]";
 
 const steps = [
   { name: "search_jobs", does: "Searches the web for postings" },
@@ -38,6 +40,41 @@ const groups = [
     title: "Tailor my resume",
     body: "Store the resume once. Claude reorders and rewords it for each job and is told not to invent skills.",
     tools: "save_resume, get_resume",
+  },
+];
+
+const connect = [
+  "In Claude, open Settings, then Connectors, then Add custom connector.",
+  "Name it Job Hunt Copilot and paste the address above.",
+  "Choose sign in, click Connect, and create your own account on the page that opens.",
+  "Start a new chat, click the plus button, open Connectors, and turn Job Hunt Copilot on.",
+];
+
+const prompts = [
+  {
+    label: "Save your resume",
+    text: "Save this as my resume: (paste your resume text here)",
+    note: "Leave out your address, phone number and ID numbers.",
+  },
+  {
+    label: "Find jobs",
+    text: "Find UI developer jobs for freshers in Hyderabad this month.",
+    note: "Change the role, place and time to match what you want.",
+  },
+  {
+    label: "Save the best ones",
+    text: "Save the two best ones to my tracker, with their links.",
+  },
+  { label: "See your tracker", text: "List my applications." },
+  {
+    label: "Tailor your resume",
+    text: "Tailor my resume to application 1. Only reword and reorder what is already there.",
+    note: "Use the number Claude shows in your list. Your stored resume stays unchanged.",
+  },
+  {
+    label: "Update a status",
+    text: "Mark application 1 as applied.",
+    note: "The statuses are saved, applied, interview, offer and rejected.",
   },
 ];
 
@@ -77,17 +114,15 @@ export default function Home() {
           <p className={`mt-6 max-w-2xl text-lg leading-relaxed ${muted}`}>
             Job Hunt Copilot is a personal project: a deployed server that gives
             Claude tools to search postings, read them, track my applications and
-            tailor my resume. This page explains what I built and the decisions
-            behind it.
+            tailor my resume. This page explains what I built, how to use it,
+            and the decisions behind it.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#try"
               className={`rounded-md bg-[#0F1B2D] px-5 py-3 font-medium text-white hover:bg-[#1B2C44] dark:bg-[#FFE066] dark:text-[#0F1B2D] dark:hover:bg-[#FFD633] ${focus}`}
             >
-              Read the code
+              How to use it
             </a>
             <a
               href="#decisions"
@@ -95,17 +130,26 @@ export default function Home() {
             >
               See the decisions
             </a>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`rounded-md border border-[#C5CFDA] px-5 py-3 font-medium hover:bg-white dark:border-[#2B3A4B] dark:hover:bg-[#162231] ${focus}`}
+            >
+              Read the code
+            </a>
           </div>
         </header>
 
         <section className="mt-16 max-w-2xl">
           <h2 className={`${display.className} text-3xl`}>Why I built it</h2>
           <p className={`mt-4 leading-relaxed ${muted}`}>
-            Claude cannot search live job postings, remember which jobs I applied
-            to, or keep my resume. The Model Context Protocol lets a server offer
-            those abilities as tools. I wanted a real server I could use in my
-            own job search, built with the care a production service needs:
-            sign-in, private data per user, and safe handling of web content.
+            Claude can search the web, but it does not remember which jobs I
+            applied to or keep my resume between chats. The Model Context
+            Protocol lets a server offer those abilities as tools. I wanted a
+            real server I could use in my own job search, built with the care a
+            production service needs: sign-in, private data per user, and safe
+            handling of web content.
           </p>
         </section>
 
@@ -158,6 +202,43 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="try" className="mt-24 max-w-2xl scroll-mt-8">
+          <h2 className={`${display.className} text-3xl`}>How to use it</h2>
+          <p className={`mt-4 leading-relaxed ${muted}`}>
+            You use it inside a Claude chat. Add this address as a custom
+            connector. This is a demo on a development sign-in, so please do not
+            store anything sensitive in it.
+          </p>
+          <code className={`mt-4 ${codeBox}`}>{MCP_URL}</code>
+
+          <h3 className="mt-10 font-semibold">Connect it</h3>
+          <ol className="mt-3 list-decimal space-y-2 pl-6 leading-relaxed marker:font-semibold">
+            {connect.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ol>
+
+          <h3 className="mt-10 font-semibold">What to type</h3>
+          <p className={`mt-2 leading-relaxed ${muted}`}>
+            You do not need to know the tool names. Claude picks the right tool
+            from plain English. Click a prompt to select it, then copy it. Claude
+            asks for approval before it saves or changes anything. If Claude
+            searches the web on its own instead, add “use Job Hunt Copilot to
+            search”.
+          </p>
+          <ol className="mt-5 list-decimal space-y-6 pl-6 marker:font-semibold">
+            {prompts.map((p) => (
+              <li key={p.label}>
+                <span className="font-medium">{p.label}</span>
+                <code className={`mt-2 ${codeBox}`}>{p.text}</code>
+                {p.note && (
+                  <span className={`mt-1 block text-sm ${muted}`}>{p.note}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <section id="decisions" className="mt-24 max-w-3xl scroll-mt-8">
           <h2 className={`${display.className} text-3xl`}>
             Decisions that make it production-minded
@@ -179,18 +260,6 @@ export default function Home() {
             Clerk for OAuth, Neon Postgres, the Tavily search API and Zod for
             input validation.
           </p>
-        </section>
-
-        <section className="mt-20 max-w-2xl">
-          <h2 className={`${display.className} text-3xl`}>Try it</h2>
-          <p className={`mt-4 leading-relaxed ${muted}`}>
-            This is a demo on a development sign-in, so please do not store
-            anything sensitive in it. To try it, add this address as a custom
-            connector in Claude and sign in when asked:
-          </p>
-          <code className="mt-3 block select-all overflow-x-auto rounded-md bg-[#E8EDF2] px-4 py-3 font-mono text-sm dark:bg-[#162231]">
-            {MCP_URL}
-          </code>
         </section>
 
         <footer
