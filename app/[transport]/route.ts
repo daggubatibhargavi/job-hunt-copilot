@@ -136,7 +136,7 @@ const handler = createMcpHandler(
 
     server.tool(
       "delete_application",
-      "Permanently delete a tracked application, using its id. This cannot be undone, so confirm with the user first.",
+      "Permanently delete a tracked application and its tailored resume, using its id. This cannot be undone, so confirm with the user first.",
       {
         id: z.number().describe("Application id from list_applications"),
       },
@@ -161,7 +161,7 @@ const handler = createMcpHandler(
 
     server.tool(
       "save_resume",
-      "Save or replace the user's resume text (plain text or markdown). Use when the user shares their resume and wants it stored for later tailoring.",
+      "Save or replace the user's MAIN resume text (plain text or markdown). Use only when the user shares their original resume. Do not use this for a version tailored to one job; use save_tailored_resume for that.",
       {
         content: z.string().min(50).max(20000).describe("The full resume as plain text or markdown"),
       },
@@ -183,7 +183,7 @@ const handler = createMcpHandler(
 
     server.tool(
       "get_resume",
-      "Get the user's saved resume text. Use before tailoring a resume or cover letter to a job.",
+      "Get the user's saved main resume text. Use before tailoring a resume or cover letter to a job.",
       {},
       async (_args, extra) => {
         const userId = uid(extra);
@@ -196,6 +196,80 @@ const handler = createMcpHandler(
               text: rows.length
                 ? rows[0].content
                 : "No resume saved yet. Ask the user to share it and call save_resume.",
+            },
+          ],
+        };
+      }
+    );
+
+    server.tool(
+      "save_tailored_resume",
+      "Save a version of the resume tailored to ONE tracked application. Use after tailoring when the user wants to keep it. Replaces any earlier tailored version for the same application. Does not change the main saved resume.",
+      {
+        application_id: z.number().describe("Application id from list_applications"),
+        content: z.string().min(50).max(20000).describe("The full tailored resume text"),
+      },
+      async ({ application_id, content }, extra) => {
+        const userId = uid(extra);
+        const rows = await sql`
+          INSERT INTO tailored_resumes (user_id, application_id, content)
+          SELECT ${userId}, a.id, ${content}
+          FROM applications a
+          WHERE a.id = ${application_id} AND a.user_id = ${userId}
+          ON CONFLICT (user_id, application_id)
+          DO UPDATE SET content = EXCLUDED.content, updated_at = now()
+          RETURNING application_id, length(content) AS chars`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: rows.length
+                ? `Tailored resume saved for application ${rows[0].application_id} (${rows[0].chars} characters).`
+                : `No application with id ${application_id}.`,
+            },
+          ],
+        };
+      }
+    );
+
+    server.tool(
+      "get_tailored_resume",
+      "Get the tailored resume saved for one application. If no application_id is given, list which applications have a tailored resume.",
+      {
+        application_id: z.number().optional().describe("Application id from list_applications"),
+      },
+      async ({ application_id }, extra) => {
+        const userId = uid(extra);
+        if (application_id === undefined) {
+          const list = await sql`
+            SELECT t.application_id, a.company, a.role, t.updated_at
+            FROM tailored_resumes t
+            JOIN applications a ON a.id = t.application_id
+            WHERE t.user_id = ${userId}
+            ORDER BY t.updated_at DESC`;
+          return {
+            content: [
+              {
+                type: "text",
+                text: list.length
+                  ? JSON.stringify(list, null, 2)
+                  : "No tailored resumes saved yet.",
+              },
+            ],
+          };
+        }
+        const rows = await sql`
+          SELECT t.content, a.company, a.role
+          FROM tailored_resumes t
+          JOIN applications a ON a.id = t.application_id
+          WHERE t.user_id = ${userId} AND t.application_id = ${application_id}`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: rows.length
+                ? `Tailored resume for ${rows[0].role} at ${rows[0].company}:\n\n${rows[0].content}`
+                : `No tailored resume saved for application ${application_id}.`,
             },
           ],
         };
